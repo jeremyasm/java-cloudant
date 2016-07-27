@@ -27,6 +27,7 @@ dependencies {
     //test dependencies
     testCompile group: 'junit', name: 'junit', version: '4.12'
     testCompile group: 'com.squareup.okhttp', name: 'mockwebserver', version: '2.7.5'
+    testCompile group: 'org.jmockit', name: 'jmockit', version: '1.25'
 }
 
 javadoc {
@@ -49,6 +50,19 @@ gradle.projectsEvaluated {
             String moduleVers = configurations.linkableJavadoc.resolvedConfiguration.firstLevelModuleDependencies.first().moduleVersion;
             options.linksOffline("http://static.javadoc.io/com.cloudant/$moduleName/$moduleVers","../$moduleName/build/docs/javadoc");
         }
+    }
+}
+
+tasks.withType(Test) {
+    def jMockit
+    doFirst {
+        // Don't do this until the task is actually being executed, because
+        // as soon as we call testCompile.find the configuration is resolved and
+        // can't be modified anymore.
+        jMockit = project.configurations.testCompile.find {
+            it.name.startsWith("jmockit-")
+        }
+        jvmArgs "-javaagent:${jMockit}"
     }
 }
 
