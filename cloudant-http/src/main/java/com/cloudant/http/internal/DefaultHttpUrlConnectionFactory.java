@@ -50,4 +50,10 @@ public class DefaultHttpUrlConnectionFactory implements HttpConnection.HttpUrlCo
             throw new IllegalArgumentException("Only HTTP type proxies are supported");
         }
     }
+
+    @Override
+    public boolean handlesFailover() {
+        return false;
+    }
+
 }

@@ -21,7 +21,10 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.UnsupportedEncodingException;
+import java.net.ConnectException;
 import java.net.HttpURLConnection;
+import java.net.InetAddress;
+import java.net.SocketTimeoutException;
 import java.net.URL;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -87,10 +90,9 @@ public class HttpConnection {
         USER_AGENT = ua;
     }
 
-
     private final String requestMethod;
-    public final URL url;
     private final String contentType;
+    private final String host;
 
     // The context
     private HttpConnectionInterceptorContext currentContext = null;
@@ -101,6 +103,8 @@ public class HttpConnection {
     // set by the various setRequestBody() methods
     private InputStreamGenerator input;
     private long inputLength;
+
+    public URL url;
 
     public final HashMap<String, String> requestProperties;
 
@@ -113,6 +117,7 @@ public class HttpConnection {
     public HttpUrlConnectionFactory connectionFactory = new DefaultHttpUrlConnectionFactory();
 
     private int numberOfRetries = 10;
+    private int addressIndex = 0;
     private boolean requestIsLoggable = true;
 
     public HttpConnection(String requestMethod,
@@ -120,6 +125,7 @@ public class HttpConnection {
                           String contentType) {
         this.requestMethod = requestMethod;
         this.url = url;
+        this.host = url.getHost();
         this.contentType = contentType;
         this.requestProperties = new HashMap<String, String>();
         this.requestInterceptors = new LinkedList<HttpConnectionRequestInterceptor>();
@@ -264,9 +270,14 @@ public class HttpConnection {
     public HttpConnection execute() throws IOException {
         boolean retry = true;
 
+        // The Java HttpURLConnection does not automatically retry multiple A records if they are
+        // available, but all the addresses should be present in the Java DNS cache (or obtained
+        // from the DNS lookup). We can store the multiple addresses to provide retry for LB
+        // failover.
+        InetAddress[] addresses = InetAddress.getAllByName(url.getHost());
+
         while (retry && numberOfRetries-- > 0) {
             connection = connectionFactory.openConnection(url);
-
             connection.setRequestProperty("User-Agent", USER_AGENT);
 
             if (url.getUserInfo() != null) {
@@ -324,19 +335,61 @@ public class HttpConnection {
                         connection.getRequestProperties()));
             }
 
-            if (input != null) {
-                InputStream is = input.getInputStream();
-                OutputStream os = connection.getOutputStream();
-                try {
-                    // The buffer size used for writing to this output stream has an impact on the
-                    //  HTTP chunk size, so we make it a pretty large size to avoid limiting the
-                    // size
-                    // of those chunks (although this appears in turn to set the chunk sizes).
-                    IOUtils.copyLarge(is, os, new byte[16 * 1024]);
-                    os.flush();
-                } finally {
-                    IOUtils.closeQuietly(is);
-                    IOUtils.closeQuietly(os);
+            IOException ioException = null;
+            try {
+                if (input != null) {
+                    InputStream is = input.getInputStream();
+                    OutputStream os = connection.getOutputStream();
+                    try {
+                        // The buffer size used for writing to this output stream has an impact
+                        // on the
+
+                        //  HTTP chunk size, so we make it a pretty large size to avoid limiting the
+                        // size
+                        // of those chunks (although this appears in turn to set the chunk sizes).
+                        IOUtils.copyLarge(is, os, new byte[16 * 1024]);
+                        os.flush();
+                    } finally {
+                        IOUtils.closeQuietly(is);
+                        IOUtils.closeQuietly(os);
+                    }
+                }
+
+                // Ensure the connection is used within this block so we can handle the exceptions
+                // here instead of them being thrown in the next place the connection is used where
+                // we won't see the exceptions.
+                connection.getResponseCode();
+            } catch (SocketTimeoutException ste) {
+                // If we are using a persistent connection and the host drops then we could receive
+                // a SocketTimeoutException instead of a ConnectException.
+                ioException = ste;
+            } catch (ConnectException ce) {
+                ioException = ce;
+            }
+
+            // If we had an exception reaching the host and we have multiple IP addresses available
+            // then we should retry with the next available address.
+            if (ioException != null) {
+                if (!connectionFactory.handlesFailover() && addresses.length > addressIndex + 1) {
+                    // Log the exception we had connecting.
+                    logger.log(Level.SEVERE, String.format("%s Unable to connect.",
+                            getLogRequestIdentifier()), ioException);
+                    addressIndex++;
+                    String nextAddress = addresses[addressIndex].getHostAddress();
+                    // Rebuild the URL with the next address. We need to change the host name
+                    // for the IP addresses otherwise we'll just end up using the same value again.
+                    this.url = new URL(url.getProtocol(), nextAddress, url.getPort(), url.getFile
+                            ());
+                    // Set the original host because the server needs to know which account the
+                    // request is for.
+                    requestProperties.put("x-cloudant-user", host);
+                    logger.info(String.format("%s Will retry request with alternate address %s",
+                            getLogRequestIdentifier(), nextAddress));
+                    // Set the retry flag and continue the loop to start the next retry.
+                    retry = true;
+                    continue;
+                } else {
+                    throw ioException;
                 }
             }
 
@@ -479,6 +532,12 @@ public class HttpConnection {
          * @param proxyUrl the URL of the HTTP proxy to use for this connection
          */
         void setProxy(URL proxyUrl);
+
+        /**
+         * @return true if the HttpUrlConnections created by this factory automatically handle
+         * failover between multiple IP addresses for the same host.
+         */
+        boolean handlesFailover();
     }
 
     /**

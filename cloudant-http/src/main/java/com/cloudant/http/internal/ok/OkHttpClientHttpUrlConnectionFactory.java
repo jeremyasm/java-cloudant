@@ -78,9 +78,14 @@ public class OkHttpClientHttpUrlConnectionFactory extends DefaultHttpUrlConnecti
         logger.config(String.format("Configured HTTP proxy url %s", proxyUrl));
     }
 
+    @Override
+    public boolean handlesFailover() {
+        // okhttp does this automatically
+        return true;
+    }
+
     public OkHttpClient getOkHttpClient() {
         return client;
     }
-
 
 }

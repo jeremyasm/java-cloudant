@@ -7,6 +7,7 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
+import com.cloudant.client.api.ClientBuilder;
 import com.cloudant.client.api.CloudantClient;
 import com.cloudant.client.org.lightcouch.CouchDbException;
 import com.cloudant.client.org.lightcouch.TooManyRequestsException;
@@ -44,6 +45,8 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.lang.reflect.Method;
+import java.net.InetAddress;
 import java.net.URL;
 import java.net.URLDecoder;
 import java.nio.charset.Charset;
@@ -783,5 +786,120 @@ public class HttpTest {
 
         assertEquals("There should be 5 request attempts", 5, mockWebServer
                 .getRequestCount());
+    }
+
+    /**
+     * @param addressesToCache InetAddresses to add to the DNS cache
+     * @throws Exception
+     */
+    private void addAddressesToDNSCache(InetAddress... addressesToCache) throws Exception {
+        // Evil reflection to make the DNS cache method accessible
+        Method cacheAddresses = InetAddress.class.getDeclaredMethod("cacheAddresses", new
+                Class[]{String.class /* hostname */, InetAddress[].class /* addresses */,
+                boolean.class /* success */});
+        cacheAddresses.setAccessible(true);
+
+        // Add entries to the DNS cache in order primaryLB, backupLB (i.e. point to our two mock
+        // server instances in the order hostname, localhost)
+        cacheAddresses.invoke(null, "lb1.test", addressesToCache, true);
+    }
+
+    /**
+     * @return a second MockWebServer instance running on the test machines assigned hostname
+     * instead of the default loopback address
+     * @throws Exception
+     */
+    private MockWebServer getPrimaryHost() throws Exception {
+        // Start a second mock web server on the assigned hostname of the local host as opposed to
+        // the localhost loopback address, use the same port number.
+        MockWebServer primaryLB = new MockWebServer();
+        primaryLB.start(InetAddress.getLocalHost(), mockWebServer.getPort());
+        return primaryLB;
+    }
+
+    private CloudantClient getClientForDNSTests() throws Exception {
+        // Point to the mockWebServer, but using a made up URL that we can put in the DNS cache
+        // Note: we still need the real port number, since it won't be running on 80
+        // Use a short connect timeout to speed up the tests
+        return ClientBuilder.url(new URL("http://lb1.test:" + mockWebServer.getPort()
+        )).connectTimeout(1l, TimeUnit.SECONDS).build();
+    }
+
+    /**
+     * Test that if multiple A records exist for a host we can successfully retry a request on an
+     * alternative if the primary has failed.
+     *
+     * This function works without any java-cloudant code for okhttp because okhttp retries multiple
+     * IP addresses automatically. For the JVM HttpURLConnection we need special handling in
+     * HttpConnection. Note that at present the special handling is active for both paths.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void failoverMulitDNSPost() throws Exception {
+
+        MockWebServer primaryLB = getPrimaryHost();
+        CloudantClient c = getClientForDNSTests();
+        addAddressesToDNSCache(new InetAddress[]{InetAddress.getLocalHost(),
+                InetAddress.getLoopbackAddress()});
+
+        // Queue up a 200 response on the primary host
+        primaryLB.enqueue(new MockResponse());
+        // Should succeed
+        c.executeRequest(Http.POST(c.getBaseUri(), "text/plain").setRequestBody("test"));
+
+        // now kill the primary lb
+        primaryLB.shutdown();
+
+        // Queue up a 200 response on the secondary
+        mockWebServer.enqueue(new MockResponse());
+        // Should succeed because of failover to secondary address
+        c.executeRequest(Http.POST(c.getBaseUri(), "text/plain").setRequestBody("test"));
+    }
+
+    @Test
+    public void failoverMulitDNSGet() throws Exception {
+
+        MockWebServer primaryLB = getPrimaryHost();
+        CloudantClient c = getClientForDNSTests();
+        addAddressesToDNSCache(new InetAddress[]{InetAddress.getLocalHost(),
+                InetAddress.getLoopbackAddress()});
+
+        // Queue up a 200 response on the primary host
+        primaryLB.enqueue(new MockResponse());
+        // Should succeed
+        c.getAllDbs();
+
+        // now kill the primary lb
+        primaryLB.shutdown();
+
+        // Queue up a 200 response on the secondary
+        mockWebServer.enqueue(new MockResponse());
+        // Should succeed because of failover to secondary address
+        c.getAllDbs();
+    }
+
+    /**
+     * Tests that if a DNS record is updated we can successfully failover to another host.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void failoverDNSUpdate() throws Exception {
+
+        MockWebServer primaryLB = getPrimaryHost();
+        CloudantClient c = getClientForDNSTests();
+        addAddressesToDNSCache(InetAddress.getLocalHost());
+
+        // Queue up a 200 on the primary
+        primaryLB.enqueue(new MockResponse());
+        c.getAllDbs();
+
+        // now kill the primary lb
+        primaryLB.shutdown();
+        // refresh the DNS entry
+        addAddressesToDNSCache(new InetAddress[]{InetAddress.getLoopbackAddress()});
+        mockWebServer.enqueue(new MockResponse());
+        c.getAllDbs();
     }
 }
