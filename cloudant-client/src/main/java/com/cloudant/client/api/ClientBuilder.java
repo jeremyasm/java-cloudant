@@ -18,6 +18,7 @@ import com.google.gson.GsonBuilder;
 
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.security.Security;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -221,10 +222,42 @@ public class ClientBuilder {
             }
         }
 
-
-        //If setter methods for read and connection timeout are not called, default values are used.
-        logger.config(String.format("Connect timeout: %s %s", connectTimeout, connectTimeoutUnit));
+        //If setter methods for read and connection timeout are not called, default values
+        // are used.
+        logger.config(String.format("Connect timeout: %s %s", connectTimeout,
+                connectTimeoutUnit));
         logger.config(String.format("Read timeout: %s %s", readTimeout, readTimeoutUnit));
+
+        // Log a warning if the DNS cache time is too long
+        try {
+            String ttlString = Security.getProperty("networkaddress.cache.ttl");
+            boolean usingDefault = true;
+            boolean logWarning = false;
+            if (ttlString != null) {
+                try {
+                    int ttl = Integer.parseInt(ttlString);
+                    usingDefault = false;
+                    if (ttl > 30) {
+                        logWarning = true;
+                    }
+                } catch (NumberFormatException nfe) {
+                    // Suppress the exception
+                    logger.config("networkaddress.cache.ttl was not an int");
+                }
+            }
+
+            logWarning = usingDefault && System.getSecurityManager() != null;
+            if (logWarning) {
+                logger.warning("DNS cache lifetime may be too long. It is recommended " +
+                        "to use DNS cache lifetimes shorter than 30 seconds to reduce" +
+                        " the duration of connection issues during a Cloudant cluster" +
+                        " failover.");
+            }
+        } catch (SecurityException e) {
+            logger.config("Permission denied to check Java DNS cache TTL. If the cache " +
+                    "lifetime is too long cluster failover will be impeded.");
+        }
+
         props.addRequestInterceptors(new TimeoutCustomizationInterceptor(connectTimeout,
                 connectTimeoutUnit, readTimeout, readTimeoutUnit));
 
