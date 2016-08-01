@@ -207,36 +207,29 @@ public class HttpTest {
         final String mockUser = "myStrangeUsername=&?";
         String mockPass = "?&=NotAsStrangeInAPassword";
 
-        MockWebServer server = new MockWebServer();
         //expect a cookie request then a GET
-        server.enqueue(MockWebServerResources.OK_COOKIE);
-        server.enqueue(new MockResponse());
+        mockWebServer.enqueue(MockWebServerResources.OK_COOKIE);
+        mockWebServer.enqueue(new MockResponse());
 
-        server.start();
+        CloudantClient c = CloudantClientHelper.newMockWebServerClientBuilder(mockWebServer)
+                .username(mockUser)
+                .password(mockPass)
+                .build();
+        //the GET request will try to get a session, then perform the GET
+        c.executeRequest(Http.GET(c.getBaseUri())).responseAsString();
 
-        try {
-            CloudantClient c = CloudantClientHelper.newMockWebServerClientBuilder(server)
-                    .username(mockUser)
-                    .password(mockPass)
-                    .build();
-            //the GET request will try to get a session, then perform the GET
-            c.executeRequest(Http.GET(c.getBaseUri())).responseAsString();
-
-            RecordedRequest r = server.takeRequest(10, TimeUnit.SECONDS);
-            String sessionRequestContent = r.getBody().readString(Charset.forName("UTF-8"));
-            assertNotNull("The _session request should have non-null content",
-                    sessionRequestContent);
-            //expecting name=...&password=...
-            String[] parts = Utils.splitAndAssert(sessionRequestContent, "&", 1);
-            String username = URLDecoder.decode(Utils.splitAndAssert(parts[0], "=", 1)[1], "UTF-8");
-            assertEquals("The username URL decoded username should match", mockUser,
-                    username);
-            String password = URLDecoder.decode(Utils.splitAndAssert(parts[1], "=", 1)[1], "UTF-8");
-            assertEquals("The username URL decoded password should match", mockPass,
-                    password);
-        } finally {
-            server.shutdown();
-        }
+        RecordedRequest r = mockWebServer.takeRequest(10, TimeUnit.SECONDS);
+        String sessionRequestContent = r.getBody().readString(Charset.forName("UTF-8"));
+        assertNotNull("The _session request should have non-null content",
+                sessionRequestContent);
+        //expecting name=...&password=...
+        String[] parts = Utils.splitAndAssert(sessionRequestContent, "&", 1);
+        String username = URLDecoder.decode(Utils.splitAndAssert(parts[0], "=", 1)[1], "UTF-8");
+        assertEquals("The username URL decoded username should match", mockUser,
+                username);
+        String password = URLDecoder.decode(Utils.splitAndAssert(parts[1], "=", 1)[1], "UTF-8");
+        assertEquals("The username URL decoded password should match", mockPass,
+                password);
     }
 
     /**
