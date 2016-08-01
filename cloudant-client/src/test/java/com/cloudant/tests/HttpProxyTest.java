@@ -58,7 +58,7 @@ public class HttpProxyTest {
                 .proxyPassword(mockProxyPass)
                 .build();
 
-        client.executeRequest(Http.GET(client.getBaseUri()));
+        client.executeRequest(Http.GET(client.getBaseUri())).responseAsString();
         //if it wasn't a 20x then an exception should have been thrown by now
 
         RecordedRequest request = server.takeRequest(10, TimeUnit.SECONDS);

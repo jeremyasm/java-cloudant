@@ -136,7 +136,8 @@ public class CloudantClientTests {
             //instantiating the client performs a single post request
             CloudantClient client = CloudantClientHelper.newMockWebServerClientBuilder(server)
                     .build();
-            client.executeRequest(createPost(client.getBaseUri(), null, "application/json"));
+            client.executeRequest(createPost(client.getBaseUri(), null, "application/json"))
+                    .responseAsString();
 
             //assert that the request had the expected header
             String userAgentHeader = server.takeRequest(10, TimeUnit.SECONDS)

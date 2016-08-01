@@ -150,11 +150,12 @@ public class ResponseTest {
         try {
             // Make a good request, which will set up the session etc
             HttpConnection d = c.executeRequest(Http.GET(c.getBaseUri()));
+            d.responseAsString();
             assertTrue("The first request should succeed", d.getConnection().getResponseCode() / 100 == 2);
 
             // Enable the bad headers and expect the exception on the next request
             badHeaderEnabled.set(true);
-            c.executeRequest(Http.GET(c.getBaseUri()));
+            c.executeRequest(Http.GET(c.getBaseUri())).responseAsString();
             fail("A CouchDbException should be thrown");
         } catch (CouchDbException e) {
             //we expect a CouchDbException

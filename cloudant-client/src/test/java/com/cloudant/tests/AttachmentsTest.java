@@ -105,17 +105,20 @@ public class AttachmentsTest {
                 .attachmentUri(response.getId(), "foo.txt"));
         InputStream in = clientResource.get().executeRequest(conn).responseAsInputStream();
 
-        ByteArrayOutputStream bytesOut = new ByteArrayOutputStream();
-        int n;
-        while ((n = in.read()) != -1) {
-            bytesOut.write(n);
+        try {
+            ByteArrayOutputStream bytesOut = new ByteArrayOutputStream();
+            int n;
+            while ((n = in.read()) != -1) {
+                bytesOut.write(n);
+            }
+            bytesOut.flush();
+
+            byte[] bytesFromDB = bytesOut.toByteArray();
+
+            assertArrayEquals(bytesToDB, bytesFromDB);
+        } finally {
+            in.close();
         }
-        bytesOut.flush();
-        in.close();
-
-        byte[] bytesFromDB = bytesOut.toByteArray();
-
-        assertArrayEquals(bytesToDB, bytesFromDB);
     }
 
     @Test
@@ -136,17 +139,20 @@ public class AttachmentsTest {
                 .attachmentUri(response.getId(), "foo.txt"));
         InputStream in = clientResource.get().executeRequest(conn).responseAsInputStream();
 
-        ByteArrayOutputStream bytesOut = new ByteArrayOutputStream();
-        int n;
-        while ((n = in.read()) != -1) {
-            bytesOut.write(n);
+        try {
+            ByteArrayOutputStream bytesOut = new ByteArrayOutputStream();
+            int n;
+            while ((n = in.read()) != -1) {
+                bytesOut.write(n);
+            }
+            bytesOut.flush();
+
+            byte[] bytesFromDB = bytesOut.toByteArray();
+
+            assertArrayEquals(bytesToDB, bytesFromDB);
+        } finally {
+            in.close();
         }
-        bytesOut.flush();
-        in.close();
-
-        byte[] bytesFromDB = bytesOut.toByteArray();
-
-        assertArrayEquals(bytesToDB, bytesFromDB);
     }
 
     @Test
@@ -174,18 +180,19 @@ public class AttachmentsTest {
                 .attachmentUri(response.getId(), attResponse.getRev(), "foo.txt"));
         InputStream in = clientResource.get().executeRequest(conn).responseAsInputStream();
 
-        ByteArrayOutputStream bytesOut = new ByteArrayOutputStream();
-        int n;
-        while ((n = in.read()) != -1) {
-            bytesOut.write(n);
+        try {
+            ByteArrayOutputStream bytesOut = new ByteArrayOutputStream();
+            int n;
+            while ((n = in.read()) != -1) {
+                bytesOut.write(n);
+            }
+            bytesOut.flush();
+            byte[] bytesFromDB = bytesOut.toByteArray();
+
+            assertArrayEquals(bytesToDB, bytesFromDB);
+        } finally {
+            in.close();
         }
-        bytesOut.flush();
-        in.close();
-
-        byte[] bytesFromDB = bytesOut.toByteArray();
-
-        assertArrayEquals(bytesToDB, bytesFromDB);
-
     }
 
     @Test
@@ -202,17 +209,20 @@ public class AttachmentsTest {
                 .attachmentUri(response.getId(), "foo.txt"));
         InputStream in = clientResource.get().executeRequest(conn).responseAsInputStream();
 
-        ByteArrayOutputStream bytesOut = new ByteArrayOutputStream();
-        int n;
-        while ((n = in.read()) != -1) {
-            bytesOut.write(n);
+        try {
+            ByteArrayOutputStream bytesOut = new ByteArrayOutputStream();
+            int n;
+            while ((n = in.read()) != -1) {
+                bytesOut.write(n);
+            }
+            bytesOut.flush();
+
+            byte[] bytesFromDB = bytesOut.toByteArray();
+
+            assertArrayEquals(bytesToDB, bytesFromDB);
+        } finally {
+            in.close();
         }
-        bytesOut.flush();
-        in.close();
-
-        byte[] bytesFromDB = bytesOut.toByteArray();
-
-        assertArrayEquals(bytesToDB, bytesFromDB);
     }
 
     @Test
@@ -232,17 +242,20 @@ public class AttachmentsTest {
                 .attachmentUri(response.getId(), "foo.txt"));
         InputStream in = clientResource.get().executeRequest(conn).responseAsInputStream();
 
-        ByteArrayOutputStream bytesOut = new ByteArrayOutputStream();
-        int n;
-        while ((n = in.read()) != -1) {
-            bytesOut.write(n);
+        try {
+            ByteArrayOutputStream bytesOut = new ByteArrayOutputStream();
+            int n;
+            while ((n = in.read()) != -1) {
+                bytesOut.write(n);
+            }
+            bytesOut.flush();
+
+            byte[] bytesFromDB = bytesOut.toByteArray();
+
+            assertArrayEquals(bytesToDB, bytesFromDB);
+        } finally {
+            in.close();
         }
-        bytesOut.flush();
-        in.close();
-
-        byte[] bytesFromDB = bytesOut.toByteArray();
-
-        assertArrayEquals(bytesToDB, bytesFromDB);
     }
 
     @Test(expected = IllegalArgumentException.class)

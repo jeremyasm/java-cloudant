@@ -74,10 +74,14 @@ public class HttpTest {
         assertEquals(data.getBytes().length, bis.available());
 
         conn.setRequestBody(bis);
-        conn.execute();
+        HttpConnection response = conn.execute();
+        // Consume response stream
+        response.responseAsString();
 
         // stream was read to end
         assertEquals(0, bis.available());
+
+        assertEquals("Should be a 2XX response code", 2, response.getConnection().getResponseCode() / 100);
     }
 
     /*
@@ -129,21 +133,24 @@ public class HttpTest {
         assertEquals(data.getBytes().length, bis.available());
 
         conn.setRequestBody(bis);
-        conn.execute();
+        HttpConnection responseConn = conn.execute();
 
         // stream was read to end
         assertEquals(0, bis.available());
-        assertEquals(2, conn.getConnection().getResponseCode() / 100);
+        assertEquals(2, responseConn.getConnection().getResponseCode() / 100);
 
         //check the json
         Gson gson = new Gson();
-        JsonObject response = gson.fromJson(new InputStreamReader(conn.getConnection()
-                .getInputStream()), JsonObject.class);
-
-        assertTrue(response.has("ok"));
-        assertTrue(response.get("ok").getAsBoolean());
-        assertTrue(response.has("id"));
-        assertTrue(response.has("rev"));
+        InputStream is = responseConn.responseAsInputStream();
+        try {
+            JsonObject response = gson.fromJson(new InputStreamReader(is), JsonObject.class);
+            assertTrue(response.has("ok"));
+            assertTrue(response.get("ok").getAsBoolean());
+            assertTrue(response.has("id"));
+            assertTrue(response.has("rev"));
+        } finally {
+            is.close();
+        }
     }
 
     /**
@@ -167,21 +174,24 @@ public class HttpTest {
         assertEquals(data.getBytes().length, bis.available());
 
         conn.setRequestBody(bis);
-        conn.execute();
+        HttpConnection responseConn = conn.execute();
 
         // stream was read to end
         assertEquals(0, bis.available());
-        assertEquals(2, conn.getConnection().getResponseCode() / 100);
+        assertEquals(2, responseConn.getConnection().getResponseCode() / 100);
 
         //check the json
         Gson gson = new Gson();
-        JsonObject response = gson.fromJson(new InputStreamReader(conn.getConnection()
-                .getInputStream()), JsonObject.class);
-
-        assertTrue(response.has("ok"));
-        assertTrue(response.get("ok").getAsBoolean());
-        assertTrue(response.has("id"));
-        assertTrue(response.has("rev"));
+        InputStream is = responseConn.responseAsInputStream();
+        try {
+            JsonObject response = gson.fromJson(new InputStreamReader(is), JsonObject.class);
+            assertTrue(response.has("ok"));
+            assertTrue(response.get("ok").getAsBoolean());
+            assertTrue(response.has("id"));
+            assertTrue(response.has("rev"));
+        } finally {
+            is.close();
+        }
     }
 
     /**
@@ -210,7 +220,7 @@ public class HttpTest {
                     .password(mockPass)
                     .build();
             //the GET request will try to get a session, then perform the GET
-            c.executeRequest(Http.GET(c.getBaseUri()));
+            c.executeRequest(Http.GET(c.getBaseUri())).responseAsString();
 
             RecordedRequest r = server.takeRequest(10, TimeUnit.SECONDS);
             String sessionRequestContent = r.getBody().readString(Charset.forName("UTF-8"));
@@ -257,8 +267,8 @@ public class HttpTest {
                 .build();
 
 
-        c.executeRequest(Http.GET(c.getBaseUri()));
-        c.executeRequest(Http.GET(c.getBaseUri()));
+        c.executeRequest(Http.GET(c.getBaseUri())).responseAsString();
+        c.executeRequest(Http.GET(c.getBaseUri())).responseAsString();
 
 
         // also assert that there were 3 calls
@@ -369,7 +379,7 @@ public class HttpTest {
         //the GET will result in a 403, which in a renewal case should mean another request to
         // _session followed by a replay of GET
         try {
-            c.executeRequest(Http.GET(c.getBaseUri()));
+            c.executeRequest(Http.GET(c.getBaseUri())).responseAsString();
             if (!error.equals("credentials_expired")) {
                 fail("A 403 not due to cookie expiry should result in a CouchDbException");
             }
@@ -503,6 +513,7 @@ public class HttpTest {
             }
         }).build().executeRequest(request);
 
+        response.responseAsString();
         assertEquals("The final response code should be 200", 200, response.getConnection()
                 .getResponseCode());
 
@@ -535,6 +546,7 @@ public class HttpTest {
         HttpConnection request = Http.POST(mockWebServer.url("/").url(), "application/json");
         request.setRequestBody("{\"some\": \"json\"}");
         HttpConnection response = c.executeRequest(request);
+        response.responseAsString();
         response.getConnection().getResponseCode();
     }
 
@@ -576,7 +588,8 @@ public class HttpTest {
                 .build();
         // POST some large random data
         client.executeRequest(Http.POST(mockWebServer.url("/").url(), "text/plain")
-                .setRequestBody(new RandomInputStreamGenerator(chunks * chunkSize)));
+                .setRequestBody(new RandomInputStreamGenerator(chunks * chunkSize)))
+                .responseAsString();
         assertEquals("There should have been 1 request", 1, mockWebServer
                 .getRequestCount());
         RecordedRequest request = mockWebServer.takeRequest();
@@ -621,7 +634,7 @@ public class HttpTest {
         CloudantClient c = CloudantClientHelper.newMockWebServerClientBuilder(mockWebServer)
                 .interceptors(Replay429Interceptor.WITH_DEFAULTS)
                 .build();
-        c.executeRequest(Http.GET(c.getBaseUri()));
+        c.executeRequest(Http.GET(c.getBaseUri())).responseAsString();
 
         assertEquals("There should be 2 requests", 2, mockWebServer.getRequestCount());
     }
@@ -643,7 +656,7 @@ public class HttpTest {
             CloudantClient c = CloudantClientHelper.newMockWebServerClientBuilder(mockWebServer)
                     .interceptors(Replay429Interceptor.WITH_DEFAULTS)
                     .build();
-            c.executeRequest(Http.GET(c.getBaseUri()));
+            c.executeRequest(Http.GET(c.getBaseUri())).responseAsString();
             fail("There should be a TooManyRequestsException");
         } catch (TooManyRequestsException e) {
             long duration = t.stopTimer(TimeUnit.MILLISECONDS);
@@ -673,7 +686,7 @@ public class HttpTest {
             CloudantClient c = CloudantClientHelper.newMockWebServerClientBuilder(mockWebServer)
                     .interceptors(new Replay429Interceptor(10, 1, true))
                     .build();
-            c.executeRequest(Http.GET(c.getBaseUri()));
+            c.executeRequest(Http.GET(c.getBaseUri())).responseAsString();
             fail("There should be a TooManyRequestsException");
         } catch (TooManyRequestsException e) {
             long duration = t.stopTimer(TimeUnit.MILLISECONDS);
@@ -700,7 +713,7 @@ public class HttpTest {
             CloudantClient c = CloudantClientHelper.newMockWebServerClientBuilder(mockWebServer)
                     .interceptors(new Replay429Interceptor(10, 1, true))
                     .build();
-            c.executeRequest(Http.GET(c.getBaseUri()).setNumberOfRetries(3));
+            c.executeRequest(Http.GET(c.getBaseUri()).setNumberOfRetries(3)).responseAsString();
             fail("There should be a TooManyRequestsException");
         } catch (TooManyRequestsException e) {
             assertEquals("There should be 3 request attempts", 3, mockWebServer
@@ -724,7 +737,7 @@ public class HttpTest {
         CloudantClient c = CloudantClientHelper.newMockWebServerClientBuilder(mockWebServer)
                 .interceptors(Replay429Interceptor.WITH_DEFAULTS)
                 .build();
-        c.executeRequest(Http.GET(c.getBaseUri()));
+        c.executeRequest(Http.GET(c.getBaseUri())).responseAsString();
 
         long duration = t.stopTimer(TimeUnit.MILLISECONDS);
         assertTrue("The duration should be at least 1000 ms, but was " + duration, duration >=
@@ -743,7 +756,7 @@ public class HttpTest {
                 .interceptors(new Replay429Interceptor(1, 1, false))
                 .build();
 
-        c.executeRequest(Http.GET(c.getBaseUri()));
+        c.executeRequest(Http.GET(c.getBaseUri())).responseAsString();
 
         long duration = t.stopTimer(TimeUnit.MILLISECONDS);
         assertTrue("The duration should be less than 1000 ms, but was " + duration, duration <
@@ -779,7 +792,7 @@ public class HttpTest {
                 })
                 .build();
 
-        c.executeRequest(Http.GET(c.getBaseUri()).setNumberOfRetries(5));
+        c.executeRequest(Http.GET(c.getBaseUri()).setNumberOfRetries(5)).responseAsString();
 
         assertEquals("There should be 5 request attempts", 5, mockWebServer
                 .getRequestCount());
