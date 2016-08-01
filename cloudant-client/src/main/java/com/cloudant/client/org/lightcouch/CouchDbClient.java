@@ -24,6 +24,7 @@ import static com.cloudant.client.org.lightcouch.internal.CouchDbUtil.getRespons
 import com.cloudant.client.internal.DatabaseURIHelper;
 import com.cloudant.client.internal.URIBase;
 import com.cloudant.client.internal.util.DeserializationTypes;
+import com.cloudant.client.org.lightcouch.internal.CouchDbUtil;
 import com.cloudant.client.org.lightcouch.internal.GsonHelper;
 import com.cloudant.http.Http;
 import com.cloudant.http.HttpConnection;
@@ -143,9 +144,11 @@ public class CouchDbClient {
      */
     public void shutdown() {
         // Delete the cookie _session if there is one
-        execute(Http.DELETE(new URIBase(clientUri).path("_session")
+        Response response = executeToResponse(Http.DELETE(new URIBase(clientUri).path("_session")
                 .build()));
-
+        if (!response.isOk()) {
+            log.warning("Error deleting session on client shutdown.");
+        }
         // The execute method handles non-2xx response codes by throwing a CouchDbException.
     }
 

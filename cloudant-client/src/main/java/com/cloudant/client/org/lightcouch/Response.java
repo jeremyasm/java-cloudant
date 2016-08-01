@@ -26,6 +26,7 @@ package com.cloudant.client.org.lightcouch;
  * @since 0.0.2
  */
 public class Response {
+    private boolean ok;
     private String id;
     private String rev;
 
@@ -74,5 +75,9 @@ public class Response {
 
     void setStatusCode(int code) {
         this.code = code;
+    }
+
+    boolean isOk() {
+        return ok;
     }
 }
